@@ -1,0 +1,693 @@
+<html>
+
+<head>
+<title>ICG WebGL &mdash; HW1</title>
+<meta http-equiv="content-type" content="text/html; charset=ISO-8859-1">
+
+<script type="text/javascript" src="glMatrix-0.9.5.min.js"></script>
+<script type="text/javascript" src="webgl-utils.js"></script>
+
+<script id="1-fs" type="x-shader/x-fragment">
+    //gouraud shading
+    precision mediump float;
+    varying vec4 fragcolor;
+    void main(void) {
+        gl_FragColor = fragcolor;
+    }
+</script>
+
+<script id="1-vs" type="x-shader/x-vertex">
+    attribute vec3 aVertexPosition;
+    attribute vec3 aVertexNormal;
+    attribute vec2 aTextureCoord;
+
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+    uniform mat3 uNMatrix;
+
+	varying vec4 fragcolor;
+	
+	uniform float uMaterialShininess;
+
+    uniform vec3 uAmbientColor;
+    uniform vec3 uPointLightingLocation;
+    uniform vec3 uPointLightingSpecularColor;
+    uniform vec3 uPointLightingDiffuseColor;
+
+    uniform highp vec3 uPointLightingLocation2;
+    uniform highp vec3 uPointLightingSpecularColor2;
+    uniform highp vec3 uPointLightingDiffuseColor2;
+
+    uniform highp vec3 uCoefficient;
+
+    uniform sampler2D uSampler;
+
+    void main(void) {
+        vec4 vPosition = uMVMatrix * vec4(aVertexPosition, 1.0);
+        gl_Position = uPMatrix * vPosition;
+		
+		vec3 lightWeighting;
+        vec3 PointlightDirection = normalize(uPointLightingLocation - vPosition.xyz);
+        vec3 normal = normalize(uNMatrix * aVertexNormal);
+        
+        
+        vec3 eyeDirection = normalize(-(uMVMatrix * vec4(aVertexPosition, 1.0)).xyz);
+        vec3 reflectionDirection = reflect(-PointlightDirection, normal);
+
+        vec3 PointlightDirection2 = normalize(uPointLightingLocation2 - vPosition.xyz); 
+        vec3 reflectionDirection2 = reflect(-PointlightDirection2, normal);
+
+        float specularLightWeighting = pow(max(dot(reflectionDirection, eyeDirection), 0.0), uMaterialShininess);
+        float specularLightWeighting2 = pow(max(dot(reflectionDirection2, eyeDirection), 0.0), uMaterialShininess);
+        
+        float diffuseLightWeighting = max(dot(normal, PointlightDirection), 0.0);
+        float diffuseLightWeighting2 = max(dot(normal, PointlightDirection2), 0.0);
+        
+        float distance1 = length(uPointLightingLocation - vPosition.xyz);
+        float distance2 = length(uPointLightingLocation2 - vPosition.xyz);
+        
+        lightWeighting = uAmbientColor * uCoefficient[0]            
+            + uPointLightingDiffuseColor * diffuseLightWeighting * uCoefficient[1] / pow(distance1 , 2.0)
+            + uPointLightingDiffuseColor2 * diffuseLightWeighting2 * uCoefficient[1] / pow(distance2 , 2.0);       
+
+        vec4 fragmentColor;
+        vec3 spec1 = uPointLightingSpecularColor * specularLightWeighting * uCoefficient[2];
+        vec3 spec2 = uPointLightingSpecularColor2 * specularLightWeighting2 * uCoefficient[2];
+
+		fragmentColor = texture2D(uSampler, vec2(aTextureCoord.s, aTextureCoord.t));
+		fragcolor = vec4(fragmentColor.rgb * lightWeighting + spec1 + spec2 , fragmentColor.a);
+		
+		
+    }
+</script>
+
+ <script id="2-fs" type="x-shader/x-fragment">
+     //phong shading
+
+    precision mediump float;
+    uniform highp mat4 uMVMatrix;
+    uniform highp mat4 uPMatrix;
+    uniform highp mat3 uNMatrix;
+        
+    varying vec3 vertexNormal;
+    varying vec2 vTextureCoord;
+    varying vec4 vPosition;    
+
+    uniform highp float uMaterialShininess;
+
+    uniform highp vec3 uAmbientColor;
+
+    uniform highp vec3 uPointLightingLocation;
+    uniform highp vec3 uPointLightingSpecularColor;
+    uniform highp vec3 uPointLightingDiffuseColor;
+
+    uniform highp vec3 uPointLightingLocation2;
+    uniform highp vec3 uPointLightingSpecularColor2;
+    uniform highp vec3 uPointLightingDiffuseColor2;
+
+    uniform highp vec3 uCoefficient;
+
+    uniform sampler2D uSampler;
+
+    void main(void) {        
+
+        vec3 lightWeighting;
+        vec3 PointlightDirection = normalize(uPointLightingLocation - vPosition.xyz);
+        
+        vec3 normal = normalize(uNMatrix * vertexNormal);
+
+        float distance1 = length(uPointLightingLocation - vPosition.xyz);
+        vec3 eyeDirection = normalize(-vPosition.xyz);
+        vec3 reflectionDirection = reflect(-PointlightDirection, normal);
+
+        vec3 PointlightDirection2 = normalize(uPointLightingLocation2 - vPosition.xyz); 
+        vec3 reflectionDirection2 = reflect(-PointlightDirection2, normal);
+        float distance2 = length(uPointLightingLocation2 - vPosition.xyz);
+
+        float specularLightWeighting = pow(max(dot(reflectionDirection, eyeDirection), 0.0), uMaterialShininess);
+        float specularLightWeighting2 = pow(max(dot(reflectionDirection2, eyeDirection), 0.0), uMaterialShininess);
+        
+
+        float diffuseLightWeighting = max(dot(normal, PointlightDirection), 0.0);
+        float diffuseLightWeighting2 = max(dot(normal, PointlightDirection2), 0.0);
+
+        lightWeighting = uAmbientColor * uCoefficient[0]    
+            + uPointLightingDiffuseColor * diffuseLightWeighting * uCoefficient[1] / pow(distance1 , 2.0)             
+            + uPointLightingDiffuseColor2 * diffuseLightWeighting2 * uCoefficient[1] / pow(distance2 , 2.0);
+
+        vec4 fragmentColor;
+        vec3 spec1 = uPointLightingSpecularColor * specularLightWeighting * uCoefficient[2];
+        vec3 spec2 = uPointLightingSpecularColor2 * specularLightWeighting2 * uCoefficient[2];
+
+        fragmentColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
+        
+        gl_FragColor = vec4(fragmentColor.rgb * lightWeighting + spec1 + spec2, fragmentColor.a);
+    }
+</script>
+
+<script id="2-vs" type="x-shader/x-vertex" >
+    
+    attribute vec3 aVertexPosition;
+    attribute vec3 aVertexNormal;
+    attribute vec2 aTextureCoord;
+
+    uniform highp mat4 uMVMatrix;
+    uniform highp mat4 uPMatrix;
+    uniform highp mat3 uNMatrix;
+    
+    
+    varying vec3 vertexNormal;
+    varying vec2 vTextureCoord;
+    varying vec4 vPosition;
+
+    uniform highp float uMaterialShininess;   
+
+    
+
+    void main(void) {
+        vPosition = uMVMatrix * vec4(aVertexPosition, 1.0);
+        gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+        
+        vertexNormal = aVertexNormal;
+        vTextureCoord = aTextureCoord;              
+    }
+
+</script>
+<script id="3-fs" type="x-shader/x-fragment">
+    //flat shading
+    #extension GL_OES_standard_derivatives:enable
+    precision mediump float;
+
+    uniform highp mat4 uMVMatrix;
+    uniform highp mat4 uPMatrix;
+    uniform highp mat3 uNMatrix;
+        
+    varying vec4 vPosition;
+    varying vec2 vTextureCoord;
+
+    uniform highp float uMaterialShininess;
+
+    uniform highp vec3 uAmbientColor;
+
+    uniform highp vec3 uPointLightingLocation;
+    uniform highp vec3 uPointLightingSpecularColor;
+    uniform highp vec3 uPointLightingDiffuseColor;
+
+    uniform highp vec3 uPointLightingLocation2;
+    uniform highp vec3 uPointLightingSpecularColor2;
+    uniform highp vec3 uPointLightingDiffuseColor2;
+
+    uniform highp vec3 uCoefficient;
+
+    uniform sampler2D uSampler;
+    
+    void main(void) {
+
+        
+        vec3 dx = dFdx(vec3(vPosition));
+        vec3 dy = dFdy(vec3(vPosition));
+        vec3 normal = normalize(cross(dx, dy));
+
+        vec3 PointlightDirection = normalize(uPointLightingLocation - vPosition.xyz);
+        vec3 PointlightDirection2 = normalize(uPointLightingLocation2 - vPosition.xyz);
+        vec3 lightWeighting;
+        
+        vec3 eyeDirection = normalize(-vPosition.xyz);
+        vec3 reflectionDirection = reflect(-PointlightDirection, normal);         
+        vec3 reflectionDirection2 = reflect(-PointlightDirection2, normal);
+        float distance1 = length(uPointLightingLocation - vPosition.xyz);
+        float distance2 = length(uPointLightingLocation2 - vPosition.xyz);
+        
+        float specularLightWeighting = pow(max(dot(reflectionDirection, eyeDirection), 0.0), uMaterialShininess);
+        float specularLightWeighting2 = pow(max(dot(reflectionDirection2, eyeDirection), 0.0), uMaterialShininess);
+        
+        float diffuseLightWeighting = max(dot(normal, PointlightDirection), 0.0);
+        float diffuseLightWeighting2 = max(dot(normal, PointlightDirection2), 0.0);
+
+        lightWeighting = uAmbientColor * uCoefficient[0]    
+            + uPointLightingDiffuseColor * diffuseLightWeighting * uCoefficient[1] / pow(distance1 , 2.0)             
+            + uPointLightingDiffuseColor2 * diffuseLightWeighting2 * uCoefficient[1] / pow(distance2 , 2.0);
+
+        vec4 fragmentColor;
+        vec3 spec1 = uPointLightingSpecularColor * specularLightWeighting * uCoefficient[2];
+        vec3 spec2 = uPointLightingSpecularColor2 * specularLightWeighting2 * uCoefficient[2];
+
+        fragmentColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
+        
+        gl_FragColor = vec4(fragmentColor.rgb * lightWeighting + spec1 + spec2, fragmentColor.a);
+    }
+
+</script>
+
+<script id="3-vs" type="x-shader/x-vertex">
+    attribute vec3 aVertexPosition;
+    attribute vec3 aVertexNormal;
+    attribute vec2 aTextureCoord;
+
+    uniform highp mat4 uMVMatrix;
+    uniform highp mat4 uPMatrix;
+    uniform highp mat3 uNMatrix;
+
+    varying vec4 vPosition;
+    varying vec2 vTextureCoord;
+
+    void main(void) {
+        vPosition = uMVMatrix * vec4(aVertexPosition, 1.0);
+        gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+        vTextureCoord = aTextureCoord;
+    }
+</script>
+
+
+
+
+<script type="text/javascript">
+
+    var gl;
+
+    function initGL(canvas) {
+        try {
+            gl = canvas.getContext("experimental-webgl");
+            gl.viewportWidth = canvas.width;
+            gl.viewportHeight = canvas.height;
+            gl.getExtension("OES_standard_derivatives");
+        } catch (e) {
+        }
+        if (!gl) {
+            alert("Could not initialise WebGL, sorry :-(");
+        }
+    }
+
+
+    function getShader(gl, id) {
+        var shaderScript = document.getElementById(id);
+        if (!shaderScript) {
+            return null;
+        }
+
+        var str = "";
+        var k = shaderScript.firstChild;
+        while (k) {
+            if (k.nodeType == 3) {
+                str += k.textContent;
+            }
+            k = k.nextSibling;
+        }
+
+        var shader;
+        if (shaderScript.type == "x-shader/x-fragment") {
+            shader = gl.createShader(gl.FRAGMENT_SHADER);
+        } else if (shaderScript.type == "x-shader/x-vertex") {
+            shader = gl.createShader(gl.VERTEX_SHADER);
+        } else {
+            return null;
+        }
+
+        gl.shaderSource(shader, str);
+        gl.compileShader(shader);
+
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            alert(gl.getShaderInfoLog(shader));
+            return null;
+        }
+
+        return shader;
+    }
+
+
+    var shaderPrograms = [];
+
+    function initShaders(i) {
+         if (shaderPrograms[i] != null)
+            return;
+
+        var fragmentShader = getShader(gl, i + "-fs");
+        var vertexShader = getShader(gl, i + "-vs");
+
+        var shaderProgram = gl.createProgram();
+        gl.attachShader(shaderProgram, vertexShader);
+        gl.attachShader(shaderProgram, fragmentShader);
+        gl.linkProgram(shaderProgram);
+
+        if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+            alert("Could not initialise shaders");
+        }
+
+        gl.useProgram(shaderProgram);
+
+        shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
+        gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute);
+
+        shaderProgram.vertexNormalAttribute = gl.getAttribLocation(shaderProgram, "aVertexNormal");
+        gl.enableVertexAttribArray(shaderProgram.vertexNormalAttribute);
+
+        shaderProgram.textureCoordAttribute = gl.getAttribLocation(shaderProgram, "aTextureCoord");
+        gl.enableVertexAttribArray(shaderProgram.textureCoordAttribute);
+
+        shaderProgram.pMatrixUniform = gl.getUniformLocation(shaderProgram, "uPMatrix");
+        shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram, "uMVMatrix");
+        shaderProgram.nMatrixUniform = gl.getUniformLocation(shaderProgram, "uNMatrix");
+        shaderProgram.samplerUniform = gl.getUniformLocation(shaderProgram, "uSampler");
+        shaderProgram.materialShininessUniform = gl.getUniformLocation(shaderProgram, "uMaterialShininess");
+ 
+        shaderProgram.ambientColorUniform = gl.getUniformLocation(shaderProgram, "uAmbientColor");
+        shaderProgram.pointLightingLocationUniform = gl.getUniformLocation(shaderProgram, "uPointLightingLocation");
+        shaderProgram.pointLightingSpecularColorUniform = gl.getUniformLocation(shaderProgram, "uPointLightingSpecularColor");
+        shaderProgram.pointLightingDiffuseColorUniform = gl.getUniformLocation(shaderProgram, "uPointLightingDiffuseColor");
+        
+        shaderProgram.pointLightingLocationUniform2 = gl.getUniformLocation(shaderProgram, "uPointLightingLocation2");
+        shaderProgram.pointLightingSpecularColorUniform2 = gl.getUniformLocation(shaderProgram, "uPointLightingSpecularColor2");
+        shaderProgram.pointLightingDiffuseColorUniform2 = gl.getUniformLocation(shaderProgram, "uPointLightingDiffuseColor2");
+        shaderProgram.CoefficientUniform = gl.getUniformLocation(shaderProgram, "uCoefficient");
+        shaderPrograms.push(shaderProgram)
+    }
+
+
+    function handleLoadedTexture(texture) {
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texture.image);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
+        gl.generateMipmap(gl.TEXTURE_2D);
+
+        gl.bindTexture(gl.TEXTURE_2D, null);
+    }
+
+
+    var earthTexture;
+    var galvanizedTexture;
+
+    function initTextures() {
+        earthTexture = gl.createTexture();
+        earthTexture.image = new Image();
+        earthTexture.image.onload = function () {
+            handleLoadedTexture(earthTexture)
+        }
+        earthTexture.image.src = "earth.jpg";
+
+        galvanizedTexture = gl.createTexture();
+        galvanizedTexture.image = new Image();
+        galvanizedTexture.image.onload = function () {
+            handleLoadedTexture(galvanizedTexture)
+        }
+        galvanizedTexture.image.src = "galvanizedTexture.jpg";
+    }
+
+
+    var mvMatrix = mat4.create();
+    var mvMatrixStack = [];
+    var pMatrix = mat4.create();
+
+
+    function setMatrixUniforms(i) {
+        gl.uniformMatrix4fv(shaderPrograms[i].pMatrixUniform, false, pMatrix);
+        gl.uniformMatrix4fv(shaderPrograms[i].mvMatrixUniform, false, mvMatrix);
+
+        var normalMatrix = mat3.create();
+        mat4.toInverseMat3(mvMatrix, normalMatrix);
+        mat3.transpose(normalMatrix);
+        gl.uniformMatrix3fv(shaderPrograms[i].nMatrixUniform, false, normalMatrix);
+    }
+
+    function degToRad(degrees) {
+        return degrees * Math.PI / 180;
+    }
+
+
+    var teapotVertexPositionBuffer;
+    var teapotVertexNormalBuffer;
+    var teapotVertexTextureCoordBuffer;
+    var teapotVertexIndexBuffer;
+
+    function handleLoadedTeapot(teapotData) {
+        teapotVertexNormalBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexNormalBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(teapotData.vertexNormals), gl.STATIC_DRAW);
+        teapotVertexNormalBuffer.itemSize = 3;
+        teapotVertexNormalBuffer.numItems = teapotData.vertexNormals.length / 3;
+
+        teapotVertexTextureCoordBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexTextureCoordBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(teapotData.vertexTextureCoords), gl.STATIC_DRAW);
+        teapotVertexTextureCoordBuffer.itemSize = 2;
+        teapotVertexTextureCoordBuffer.numItems = teapotData.vertexTextureCoords.length / 2;
+
+        teapotVertexPositionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexPositionBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(teapotData.vertexPositions), gl.STATIC_DRAW);
+        teapotVertexPositionBuffer.itemSize = 3;
+        teapotVertexPositionBuffer.numItems = teapotData.vertexPositions.length / 3;
+
+        teapotVertexIndexBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, teapotVertexIndexBuffer);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(teapotData.indices), gl.STATIC_DRAW);
+        teapotVertexIndexBuffer.itemSize = 1;
+        teapotVertexIndexBuffer.numItems = teapotData.indices.length;
+
+        document.getElementById("loadingtext").textContent = "";
+    }
+
+
+    function loadTeapot() {
+        var request = new XMLHttpRequest();
+        request.open("GET", "Teapot.json");
+        request.onreadystatechange = function () {
+            if (request.readyState == 4) {
+                handleLoadedTeapot(JSON.parse(request.responseText));
+            }
+        }
+        request.send();
+    }
+
+
+    var teapotAngle = [180,180,180];
+    var Coordinate = [[0,0,-50], [50,15,-85], [-50,0,-85]];
+    var rotate = [[1,0,0],[0,1,1],[0,0,1]];
+    var scale = [[1,1,1] ,[1,1,1] ,[1,1,1]];
+
+    function drawScene() {
+        gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        if (teapotVertexPositionBuffer == null || teapotVertexNormalBuffer == null || teapotVertexTextureCoordBuffer == null || teapotVertexIndexBuffer == null) {
+            return;
+        }
+
+        mat4.perspective(45, gl.viewportWidth / gl.viewportHeight  , 0.1, 100.0, pMatrix);
+
+
+        for (var i = 0; i < 3; i ++) {
+            gl.useProgram(shaderPrograms[i]);
+            gl.uniform3f(
+                shaderPrograms[i].ambientColorUniform,
+                parseFloat(document.getElementById("ambientR").value),
+                parseFloat(document.getElementById("ambientG").value),
+                parseFloat(document.getElementById("ambientB").value)
+            );
+
+            gl.uniform3f(
+                shaderPrograms[i].pointLightingLocationUniform,
+                parseFloat(document.getElementById("lightPositionX").value),
+                parseFloat(document.getElementById("lightPositionY").value),
+                parseFloat(document.getElementById("lightPositionZ").value)
+            );
+
+            gl.uniform3f(
+                shaderPrograms[i].pointLightingSpecularColorUniform,
+                parseFloat(document.getElementById("specularR").value),
+                parseFloat(document.getElementById("specularG").value),
+                parseFloat(document.getElementById("specularB").value)
+            );
+
+            gl.uniform3f(
+                shaderPrograms[i].pointLightingDiffuseColorUniform,
+                parseFloat(document.getElementById("diffuseR").value),
+                parseFloat(document.getElementById("diffuseG").value),
+                parseFloat(document.getElementById("diffuseB").value)
+            );
+
+            gl.uniform3f(
+                shaderPrograms[i].pointLightingLocationUniform2,
+                parseFloat(document.getElementById("lightPositionX_2").value),
+                parseFloat(document.getElementById("lightPositionY_2").value),
+                parseFloat(document.getElementById("lightPositionZ_2").value)
+            );
+
+            gl.uniform3f(
+                shaderPrograms[i].pointLightingSpecularColorUniform2,
+                parseFloat(document.getElementById("specularR_2").value),
+                parseFloat(document.getElementById("specularG_2").value),
+                parseFloat(document.getElementById("specularB_2").value)
+            );
+
+            gl.uniform3f(
+                shaderPrograms[i].pointLightingDiffuseColorUniform2,
+                parseFloat(document.getElementById("diffuseR_2").value),
+                parseFloat(document.getElementById("diffuseG_2").value),
+                parseFloat(document.getElementById("diffuseB_2").value)
+            );
+            gl.uniform3f(
+                shaderPrograms[i].CoefficientUniform,
+                parseFloat(document.getElementById("Ka").value),
+                parseFloat(document.getElementById("Kd").value),
+                parseFloat(document.getElementById("Ks").value)
+            );
+            
+
+
+            mat4.identity(mvMatrix);
+
+            mat4.translate(mvMatrix, Coordinate[i]);
+           
+            mat4.rotate(mvMatrix, degToRad(teapotAngle[i]), rotate[i]);
+            if( i == 1){
+                mat4.scale(mvMatrix , [(Math.sin(teapotAngle[i]/4)+1.5)/2 , (Math.sin(teapotAngle[i]/4)+1.5)/2 , (Math.sin(teapotAngle[i]/4)+1.5)/2]);
+            }
+            gl.activeTexture(gl.TEXTURE0);
+
+            gl.bindTexture(gl.TEXTURE_2D, galvanizedTexture);
+            
+            gl.uniform1i(shaderPrograms[i].samplerUniform, 0);
+
+            gl.uniform1f(shaderPrograms[i].materialShininessUniform, parseFloat(document.getElementById("shininess").value));
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexPositionBuffer);
+            gl.vertexAttribPointer(shaderPrograms[i].vertexPositionAttribute, teapotVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexTextureCoordBuffer);
+            gl.vertexAttribPointer(shaderPrograms[i].textureCoordAttribute, teapotVertexTextureCoordBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexNormalBuffer);
+            gl.vertexAttribPointer(shaderPrograms[i].vertexNormalAttribute, teapotVertexNormalBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, teapotVertexIndexBuffer);
+            setMatrixUniforms(i);
+            gl.drawElements(gl.TRIANGLES, teapotVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+        }    
+    }
+
+
+    var lastTime = 0;
+
+    function animate() {
+        var timeNow = new Date().getTime();
+        if (lastTime != 0) {
+            var elapsed = timeNow - lastTime;
+            teapotAngle[1] += 0.03 * elapsed;
+            teapotAngle[0] += 0.04 * elapsed;
+            teapotAngle[2] += 0.03 * elapsed;
+        }
+        lastTime = timeNow;
+    }
+
+
+    function tick() {
+        requestAnimFrame(tick);
+        drawScene();
+        animate();
+    }
+
+
+    function webGLStart() {
+        var canvas = document.getElementById("ICG-canvas");
+        initGL(canvas);
+        for(var i = 1;i < 4 ;i++)
+            initShaders(i);
+        initTextures();
+        loadTeapot();
+        
+
+        gl.clearColor(0.0, 0.2, 0.2, 1.0);
+        gl.enable(gl.DEPTH_TEST);
+
+        tick();
+    }
+
+</script>
+
+
+<style type="text/css">
+    #loadingtext {
+        position:absolute;
+        top:250px;
+        left:150px;
+        font-size:2em;
+        color: white;
+    }
+</style>
+
+
+</head>
+
+
+<body onload="webGLStart();">
+  
+    <canvas id="ICG-canvas" style="border: none;" width="1200" height="600"></canvas>
+
+    <div id="loadingtext">Loading world...</div>
+    <br/>
+
+    
+	
+	
+    <br/>
+    <table style="border: 0; padding: 10px;">
+        <tr>
+            <td><b>Material:</b>
+            <td><input type="text" id="shininess" value="240.0" />
+        </tr>
+		<tr>
+            <td><b>Point Light Location:</b>
+            <td>X: <input type="text" id="lightPositionX" value="-10.0" />
+            <td>Y: <input type="text" id="lightPositionY" value="4.0" />
+            <td>Z: <input type="text" id="lightPositionZ" value="-20.0" />
+        </tr>
+        <tr>
+            <td><b>Ambient Light Colour:</b>
+            <td>R: <input type="text" id="ambientR" value="0.2" />
+            <td>G: <input type="text" id="ambientG" value="0.2" />
+            <td>B: <input type="text" id="ambientB" value="0.2" />
+        </tr>
+        <tr>
+            <td><b>Specular Colour:</b>
+            <td>R: <input type="text" id="specularR" value="0.8" />
+            <td>G: <input type="text" id="specularG" value="0.8" />
+            <td>B: <input type="text" id="specularB" value="0.8" />
+        </tr>
+        <tr>
+            <td><b>Diffuse Colour:</b>
+            <td>R: <input type="text" id="diffuseR" value="0.8" />
+            <td>G: <input type="text" id="diffuseG" value="0.8" />
+            <td>B: <input type="text" id="diffuseB" value="0.8" />
+        </tr>		
+        <tr>
+            <td><b>Point Light Location 2:</b>
+            <td>X: <input type="text" id="lightPositionX_2" value="100.0" />
+            <td>Y: <input type="text" id="lightPositionY_2" value="20.0" />
+            <td>Z: <input type="text" id="lightPositionZ_2" value="-40.0" />
+        </tr>
+        <tr>
+            <td><b>Specular Colour 2:</b>
+            <td>R: <input type="text" id="specularR_2" value="0.8" />
+            <td>G: <input type="text" id="specularG_2" value="0.8" />
+            <td>B: <input type="text" id="specularB_2" value="0.8" />
+        </tr>
+        <tr>
+            <td><b>Diffuse Colour 2:</b>
+            <td>R: <input type="text" id="diffuseR_2" value="0.8" />
+            <td>G: <input type="text" id="diffuseG_2" value="0.8" />
+            <td>B: <input type="text" id="diffuseB_2" value="0.8" />
+        </tr>
+        <tr>
+            <td><b>Coefficient:</b>
+            <td>R: <input type="text" id="Ka" value="2" />
+            <td>G: <input type="text" id="Kd" value="20" />
+            <td>B: <input type="text" id="Ks" value="3" />
+        </tr>
+    </table>
+    <br/>
+
+</body>
+
+</html>
